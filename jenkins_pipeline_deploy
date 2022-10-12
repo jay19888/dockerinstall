@@ -1,0 +1,47 @@
+pipeline {
+    agent any
+    stages {
+        stage ('checkout scm'){
+            steps {
+                git url: 'https://github.com/jay19888/hello-world-1.git'
+            }
+        }
+        stage('SonarQube Analysis') {
+            steps {
+                //def mvn = tool 'Default Maven';
+                withSonarQubeEnv('sonarqube') {
+                    sh "mvn clean verify sonar:sonar -Dsonar.projectKey=project_demo"
+                }
+            }     
+        }
+        stage('build the binaries'){
+            steps{
+                sh 'mvn clean install'
+            }
+        }
+        stage ('Upload file') {
+            steps {
+                rtUpload (
+                    serverId: 'artifactory123', // Obtain an Artifactory server instance, defined in Jenkins --> Manage:
+                    spec: """{
+                            "files": [
+                                    {
+                                        "pattern": "webapp/target/*.war",
+                                        "target": "libs-snapshot-local/snapshot-1.0-${BUILD_NUMBER}/"
+                                    }
+                                ]
+                            }"""
+                )
+            }
+        }
+        stage ('ansible_deploy') {
+            steps {
+                sshPublisher(publishers: [sshPublisherDesc(configName: 'ansible_server', transfers: [sshTransfer(cleanRemote: false, excludes: '', execCommand: '', execTimeout: 120000, flatten: false, makeEmptyDirs: false, noDefaultExcludes: false, patternSeparator: '[, ]+', remoteDirectory: '//ansible_data', remoteDirectorySDF: false, removePrefix: 'webapp/target', sourceFiles: 'webapp/target/*.war')], usePromotionTimestamp: false, useWorkspaceInPromotion: false, verbose: false), sshPublisherDesc(configName: 'ansible_server', transfers: [sshTransfer(cleanRemote: false, excludes: '', execCommand: '''
+                docker build -t demo .
+                docker tag demo jayn21/demo
+                docker push jayn21/demo
+                docker rmi demo jayn21/demo''', execTimeout: 120000, flatten: false, makeEmptyDirs: false, noDefaultExcludes: false, patternSeparator: '[, ]+', remoteDirectory: '//ansible_data', remoteDirectorySDF: false, removePrefix: '', sourceFiles: 'Dockerfile')], usePromotionTimestamp: false, useWorkspaceInPromotion: false, verbose: false), sshPublisherDesc(configName: 'ansible_server', transfers: [sshTransfer(cleanRemote: false, excludes: '', execCommand: 'ansible-playbook deploy.yml', execTimeout: 120000, flatten: false, makeEmptyDirs: false, noDefaultExcludes: false, patternSeparator: '[, ]+', remoteDirectory: '//ansible_data', remoteDirectorySDF: false, removePrefix: '', sourceFiles: 'deploy.yml')], usePromotionTimestamp: false, useWorkspaceInPromotion: false, verbose: false)])           
+            }   
+        }
+    }
+}
