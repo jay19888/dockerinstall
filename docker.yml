@@ -40,3 +40,5 @@
           - "8085:8080"
     - name: copy war file to above tomcat container
       command: 'docker cp webapp.war demo:/usr/local/tomcat/webapps/'
+
+
